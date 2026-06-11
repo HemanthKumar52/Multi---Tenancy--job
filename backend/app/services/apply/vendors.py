@@ -1,8 +1,8 @@
 """Per-vendor apply adapters.
 
-Greenhouse is live (Playwright) and gated behind ``settings.apply_live`` — OFF by default, so
-nothing submits unless an operator explicitly enables it. Lever/Ashby are stubbed (Phase 3).
-External/aggregator sources are discovery-only and refuse to auto-apply by design.
+Greenhouse, Lever, and Ashby are live (Playwright, spec-driven) and gated behind
+``settings.apply_live`` — OFF by default, so nothing submits unless an operator explicitly
+enables it. External/aggregator sources are discovery-only and refuse to auto-apply by design.
 """
 from __future__ import annotations
 
@@ -49,14 +49,22 @@ class _LeverAdapter:
     vendor = "lever"
 
     def submit(self, *, apply_url: str, resume_path: str | None, identity: dict, answers: dict) -> dict:
-        raise AutomationUnavailable("Lever live apply automation is stubbed (Phase 3).")
+        if not settings.apply_live:
+            raise AutomationUnavailable("Lever live apply is disabled (set APPLY_LIVE=1 to enable).")
+        from app.services.apply import playwright_lever as pl
+
+        return pl.submit_application(apply_url, resume_path, identity, answers)
 
 
 class _AshbyAdapter:
     vendor = "ashby"
 
     def submit(self, *, apply_url: str, resume_path: str | None, identity: dict, answers: dict) -> dict:
-        raise AutomationUnavailable("Ashby live apply automation is stubbed (Phase 3).")
+        if not settings.apply_live:
+            raise AutomationUnavailable("Ashby live apply is disabled (set APPLY_LIVE=1 to enable).")
+        from app.services.apply import playwright_ashby as pa
+
+        return pa.submit_application(apply_url, resume_path, identity, answers)
 
 
 class _ExternalAdapter:

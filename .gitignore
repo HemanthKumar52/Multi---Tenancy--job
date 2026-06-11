@@ -23,7 +23,7 @@ dist/
 # Data / artifacts
 *.sqlite3
 *.db
-/backend/storage/
+**/storage/
 /backend/.uploads/
 tmp/
 *.log

@@ -12,11 +12,9 @@ from app.config import settings
 from app.db import models
 from app.db.base import get_db
 from app.schemas import ApproveRequest, PrepareRequest
-from app.services.apply import orchestrator
-from app.services.apply.orchestrator import ApplicationDraft, ApplicationState
-from app.services.matching.matcher import MatchResult
-from app.services.notify import notifier
-from app.services.resume.models import Edit, EditSet
+from app.services.apply import orchestrator, queue, runner
+from app.services.apply.orchestrator import ApplicationState
+from app.services.billing import usage
 
 router = APIRouter(prefix="/applications", tags=["applications"])
 
@@ -45,6 +43,8 @@ def prepare(
     )
     if existing:
         raise HTTPException(409, f"An application for this job already exists ({existing.state}).")
+
+    usage.check_and_record(db, tenant_id, "tailor")   # meter + enforce monthly cap
 
     draft = orchestrator.prepare(
         profile,
@@ -94,9 +94,10 @@ def approve(
     if app_row.state != ApplicationState.PENDING_APPROVAL.value:
         raise HTTPException(409, f"Application is '{app_row.state}', not pending approval.")
 
+    usage.check_cap(db, tenant_id, "apply")   # enforce the cap now; record only on success
+
     job = get_job_row(db, tenant_id, app_row.job_id)
-    approved_at = datetime.now(timezone.utc)
-    app_row.approved_at = approved_at
+    app_row.approved_at = datetime.now(timezone.utc)   # consent timestamp
 
     # Identity comes from the user's own master profile (truthful — never fabricated).
     profile, _ = load_master_profile(db, tenant_id, app_row.profile_id)
@@ -108,50 +109,19 @@ def approve(
         "phone": profile.phone,
     }
 
-    # Rebuild a lightweight draft to submit.
-    draft = ApplicationDraft(
-        job_title=job.title,
-        job_company=job.company,
-        job_url=job.url,
-        ats_vendor=job.ats_vendor,
-        match=MatchResult(score=app_row.match_score),
-        edit_set=EditSet(edits=[Edit(**e) for e in app_row.edit_set.get("edits", [])]),
-        ats_report=app_row.ats_report,
-        tailored_doc_path=app_row.tailored_doc_path,
-        notes=list(app_row.notes or []),
-        state=ApplicationState.PENDING_APPROVAL,
-    )
+    if settings.apply_async:
+        # Hand off to the background worker; the browser session runs off the request thread.
+        # Persist the payload so a worker/process restart can recover queued applications.
+        app_row.state = ApplicationState.QUEUED.value
+        app_row.queued_payload = {"identity": identity, "answers": req.answers}
+        db.commit()
+        queue.dispatch(app_row.id, tenant_id, identity, req.answers)
+        return {"application_id": app_row.id, "state": app_row.state}
 
-    draft = orchestrator.approve_and_submit(draft, identity=identity, answers=req.answers)
-
-    app_row.state = draft.state.value
-    app_row.notes = draft.notes
-    if draft.state == ApplicationState.SUBMITTED:
-        app_row.submitted_at = datetime.now(timezone.utc)
-
-    # Persist an audit/consent record. Store answer *labels* only (not values) + a resume hash;
-    # never raw resume bytes or sensitive answer values.
-    app_row.audit = {
-        **(draft.audit or {}),
-        "approved_at": approved_at.isoformat(),
-        "user_agent": settings.user_agent,
-        "company": job.company,
-        "role": job.title,
-        "ats_vendor": job.ats_vendor,
-        "apply_url": job.url,
-        "answered_question_labels": sorted((req.answers or {}).keys()),
-        "consented_via": "approve route, confirm=true",
-    }
-
-    note = "; ".join(n for n in draft.notes if n) or draft.state.value
-    db.add(models.Notification(
-        tenant_id=tenant_id,
-        title=f"Application {draft.state.value}: {job.title} @ {job.company}",
-        body=note,
-    ))
-    notifier.notify(None, f"Application {draft.state.value}", note)
+    # Synchronous path (default): run the submission inline and return the terminal state.
+    draft = runner.run_submission(db, app_row, job, identity, req.answers)
     db.commit()
-    return {"application_id": app_row.id, "state": app_row.state, "notes": app_row.notes}
+    return {"application_id": app_row.id, "state": draft.state.value, "notes": app_row.notes}
 
 
 @router.post("/{application_id}/skip")

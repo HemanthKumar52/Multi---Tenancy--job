@@ -4,6 +4,17 @@ from __future__ import annotations
 from pydantic import BaseModel, Field
 
 
+class RegisterRequest(BaseModel):
+    email: str
+    password: str = Field(min_length=8, max_length=128)   # bound feeds into PBKDF2
+    name: str = ""
+
+
+class LoginRequest(BaseModel):
+    email: str
+    password: str = Field(max_length=128)
+
+
 class DiscoverRequest(BaseModel):
     source_specs: list[dict] = Field(
         default_factory=list,

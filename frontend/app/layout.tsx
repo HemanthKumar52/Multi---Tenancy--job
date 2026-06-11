@@ -1,7 +1,7 @@
 import "./globals.css";
 import type { Metadata } from "next";
-import Link from "next/link";
 import { Fraunces, Hanken_Grotesk, IBM_Plex_Mono } from "next/font/google";
+import Nav from "./components/Nav";
 
 const fraunces = Fraunces({
   subsets: ["latin"],
@@ -32,22 +32,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="en" className={`${fraunces.variable} ${hanken.variable} ${plexMono.variable}`}>
       <body>
-        <nav className="nav">
-          <span className="brand">
-            <span className="dot" />
-            Apply&nbsp;Co-Pilot
-          </span>
-          <span className="status">
-            <span className="pulse" />
-            co-pilot engaged
-          </span>
-          <span className="links">
-            <Link href="/">Dashboard</Link>
-            <Link href="/profile">Profile</Link>
-            <Link href="/jobs">Jobs</Link>
-            <Link href="/applications">Applications</Link>
-          </span>
-        </nav>
+        <Nav />
         <div className="container">{children}</div>
       </body>
     </html>

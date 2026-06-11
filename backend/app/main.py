@@ -10,6 +10,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.api.deps import DEV_TENANT_ID
 from app.api.routes import (
     applications,
+    auth,
+    billing,
     health,
     inbox,
     jobs,
@@ -18,6 +20,7 @@ from app.api.routes import (
     prep,
     profiles,
     tailor,
+    templates,
 )
 from app.config import settings
 from app.db import models
@@ -33,10 +36,38 @@ def _seed_dev_tenant() -> None:
             db.commit()
 
 
+def _recover_queued() -> None:
+    """Re-dispatch (or fail) applications left QUEUED by a prior worker/process crash.
+
+    Best-effort: a recovery hiccup must never block startup.
+    """
+    from app.services.apply import queue
+    from app.services.apply.orchestrator import ApplicationState
+
+    try:
+        with SessionLocal() as db:
+            rows = db.query(models.Application).filter(
+                models.Application.state == ApplicationState.QUEUED.value).all()
+            for r in rows:
+                payload = r.queued_payload or {}
+                if payload.get("identity"):
+                    queue.dispatch(r.id, r.tenant_id, payload["identity"], payload.get("answers", {}))
+                else:
+                    r.state = ApplicationState.FAILED.value
+                    r.notes = list(r.notes or []) + ["worker lost before submission; please re-apply"]
+            db.commit()
+    except Exception as exc:  # noqa: BLE001
+        logging.getLogger("startup").warning("Queued-apply recovery skipped: %s", exc)
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    # Production must require authentication — never boot with the dev tenant-header fallback.
+    if settings.app_env != "dev" and not settings.auth_required:
+        raise RuntimeError("AUTH_REQUIRED must be true outside dev (tenant-header fallback is dev-only).")
     init_db()
     _seed_dev_tenant()
+    _recover_queued()
     yield
 
 
@@ -55,7 +86,8 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-for r in (health, profiles, jobs, matches, tailor, applications, inbox, prep, notifications):
+for r in (health, auth, billing, profiles, jobs, matches, tailor, applications,
+          inbox, prep, notifications, templates):
     app.include_router(r.router)
 
 

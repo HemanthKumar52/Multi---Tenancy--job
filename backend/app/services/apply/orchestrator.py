@@ -18,6 +18,7 @@ from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
 
+from app.config import settings
 from app.services.apply import vendors
 from app.services.matching.matcher import MatchResult, match
 from app.services.resume import ats as ats_mod
@@ -31,6 +32,7 @@ class ApplicationState(str, Enum):
     MATCHED = "matched"
     TAILORED = "tailored"
     PENDING_APPROVAL = "pending_approval"
+    QUEUED = "queued"                          # approved, awaiting the background apply worker
     SUBMITTING = "submitting"
     SUBMITTED = "submitted"
     HUMAN_HANDOFF = "human_handoff_required"   # CAPTCHA/login wall — never auto-bypassed
@@ -85,7 +87,7 @@ def prepare(
     job_url: str = "",
     ats_vendor: str = "greenhouse",
     source_doc_path: str | None = None,
-    out_dir: str | Path = "storage/tailored",
+    out_dir: str | Path | None = None,
 ) -> ApplicationDraft:
     """Run match -> tailor -> render and stop at PENDING_APPROVAL (never auto-submit)."""
     notes: list[str] = []
@@ -94,7 +96,8 @@ def prepare(
 
     tailored_path: str | None = None
     if source_doc_path and Path(source_doc_path).suffix.lower() == ".docx":
-        out_dir = Path(out_dir)
+        # Default to the configured storage path (absolute), not a cwd-relative dir.
+        out_dir = Path(out_dir) if out_dir else (settings.storage_path / "tailored")
         out_dir.mkdir(parents=True, exist_ok=True)
         safe = f"{job_company}_{job_title}".replace("/", "-").replace(" ", "_")[:80]
         out_path = out_dir / f"{safe}.docx"

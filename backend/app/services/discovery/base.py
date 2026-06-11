@@ -24,7 +24,8 @@ _rate_lock = threading.Lock()
 
 
 def polite_get(url: str, *, params: dict | None = None, timeout: float = 15.0,
-               retries: int = 2, min_interval: float = 1.0) -> httpx.Response:
+               retries: int = 2, min_interval: float = 1.0,
+               headers: dict | None = None) -> httpx.Response:
     host = (urlparse(url).hostname or "").lower()
     # Reserve this host's slot *inside* the lock, then sleep *outside* it — so pacing one host
     # never serializes requests to other hosts, and concurrent threads don't stampede on a stale
@@ -36,10 +37,10 @@ def polite_get(url: str, *, params: dict | None = None, timeout: float = 15.0,
     if wait > 0:
         time.sleep(wait)
 
-    headers = {"User-Agent": settings.user_agent}
+    req_headers = {"User-Agent": settings.user_agent, **(headers or {})}  # caller headers win
     resp: httpx.Response | None = None
     for attempt in range(retries + 1):
-        resp = httpx.get(url, params=params, timeout=timeout, headers=headers,
+        resp = httpx.get(url, params=params, timeout=timeout, headers=req_headers,
                          follow_redirects=True)
         if resp.status_code in (429, 500, 502, 503, 504) and attempt < retries:
             retry_after = resp.headers.get("Retry-After")

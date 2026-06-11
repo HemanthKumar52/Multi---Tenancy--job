@@ -8,6 +8,7 @@ from __future__ import annotations
 from functools import lru_cache
 from pathlib import Path
 
+from pydantic import model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 # backend/  (two parents up from app/config.py)
@@ -24,6 +25,18 @@ class Settings(BaseSettings):
     app_env: str = "dev"
     secret_key: str = "dev-only-change-me"
 
+    # Auth — when False (dev), unauthenticated requests fall back to the seeded dev tenant.
+    auth_required: bool = False
+    jwt_expire_hours: int = 720
+
+    # Billing (Stripe optional — plan model works offline without keys)
+    stripe_secret_key: str | None = None
+    stripe_price_id_pro: str | None = None
+    stripe_webhook_secret: str | None = None
+
+    # Apply execution: run approved applies on a background worker instead of inline.
+    apply_async: bool = False
+
     # Database — default SQLite file under storage/
     database_url: str | None = None
 
@@ -37,6 +50,9 @@ class Settings(BaseSettings):
     # Discovery
     adzuna_app_id: str | None = None
     adzuna_app_key: str | None = None
+    usajobs_api_key: str | None = None
+    usajobs_email: str | None = None        # USAJobs requires your registered email as User-Agent
+    apify_token: str | None = None          # enables Apify actors (LinkedIn/Indeed/etc.) — discovery-only
 
     # Inbound email
     inbound_domain: str = "inbox.applycopilot.local"
@@ -55,6 +71,7 @@ class Settings(BaseSettings):
     apply_allowed_hosts: list[str] = [
         "127.0.0.1", "localhost",
         "boards.greenhouse.io", "job-boards.greenhouse.io",
+        "jobs.lever.co", "jobs.ashbyhq.com",
     ]
     browser_headless: bool = True
     apply_timeout_ms: int = 30000
@@ -63,6 +80,18 @@ class Settings(BaseSettings):
 
     # Storage
     storage_dir: str = str(BACKEND_ROOT / "storage")
+
+    @model_validator(mode="after")
+    def _guard_secret(self):
+        # Fail fast rather than ship a forgeable JWT secret. Dev (no auth) is exempt.
+        if (self.app_env != "dev" or self.auth_required) and (
+            self.secret_key == "dev-only-change-me" or len(self.secret_key) < 32
+        ):
+            raise ValueError(
+                "SECRET_KEY must be set to a 32+ char random value in non-dev/auth-required "
+                "environments (the default is forgeable)."
+            )
+        return self
 
     @property
     def resolved_database_url(self) -> str:

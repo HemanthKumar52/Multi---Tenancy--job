@@ -22,6 +22,31 @@ services:
     volumes:
       - redisdata:/data
 
+  api:
+    build: ./backend
+    environment:
+      APP_ENV: prod
+      SECRET_KEY: ${SECRET_KEY:?set SECRET_KEY to a 32+ char random value}
+      DATABASE_URL: postgresql+psycopg://applycopilot:applycopilot@db:5432/applycopilot
+      REDIS_URL: redis://redis:6379/0
+      AUTH_REQUIRED: "true"
+      INBOUND_DOMAIN: inbox.applycopilot.local
+      # ANTHROPIC_API_KEY, APPLY_LIVE, STRIPE_*, ADZUNA_*, APIFY_TOKEN: set as needed
+    ports:
+      - "8000:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+
+  web:
+    build: ./frontend
+    environment:
+      NEXT_PUBLIC_API_BASE: http://localhost:8000
+    ports:
+      - "3000:3000"
+    depends_on:
+      - api
+
 volumes:
   dbdata:
   redisdata:

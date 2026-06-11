@@ -23,6 +23,15 @@ numpy>=2.1
 # LLM (optional at runtime; offline fallback used when key absent)
 anthropic>=0.40
 
+# Auth
+PyJWT>=2.9
+
+# Browser automation (live apply)
+playwright>=1.48
+
+# Billing (optional at runtime — imported only when Stripe keys are set)
+stripe>=11.0
+
 # Agent orchestration
 langgraph>=0.2.50
 

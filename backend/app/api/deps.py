@@ -9,6 +9,8 @@ from __future__ import annotations
 from fastapi import Depends, Header, HTTPException
 from sqlalchemy.orm import Session
 
+from app.config import settings
+from app.core.security import decode_access_token
 from app.db import models
 from app.db.base import get_db
 from app.services.resume.models import MasterProfile
@@ -17,8 +19,43 @@ from app.services.resume.parser import parse_resume
 DEV_TENANT_ID = "devtenant"
 
 
-def current_tenant_id(x_tenant_id: str = Header(default=DEV_TENANT_ID)) -> str:
+def _claims_from_header(authorization: str | None) -> dict | None:
+    if not authorization or not authorization.lower().startswith("bearer "):
+        return None
+    token = authorization.split(" ", 1)[1].strip()
+    try:
+        return decode_access_token(token)
+    except Exception as exc:  # invalid / expired
+        raise HTTPException(401, "Invalid or expired token") from exc
+
+
+def current_tenant_id(
+    authorization: str | None = Header(default=None),
+    x_tenant_id: str = Header(default=DEV_TENANT_ID),
+) -> str:
+    """Resolve tenant from a JWT when present; otherwise dev fallback (unless auth is required)."""
+    claims = _claims_from_header(authorization)
+    if claims:
+        return claims["tid"]
+    # The unauthenticated X-Tenant-Id fallback is a DEV-ONLY convenience. In any other env a
+    # token is required — otherwise the header would let anyone read/write any tenant's data.
+    if settings.auth_required or settings.app_env != "dev":
+        raise HTTPException(401, "Authentication required")
     return x_tenant_id
+
+
+def get_current_user(
+    authorization: str | None = Header(default=None),
+    db: Session = Depends(get_db),
+) -> models.User:
+    """Require a valid token and return the authenticated user (for account/settings routes)."""
+    claims = _claims_from_header(authorization)
+    if not claims:
+        raise HTTPException(401, "Authentication required")
+    user = db.get(models.User, claims["sub"])
+    if not user:
+        raise HTTPException(401, "User not found")
+    return user
 
 
 def get_profile_row(db: Session, tenant_id: str, profile_id: str) -> models.Profile:

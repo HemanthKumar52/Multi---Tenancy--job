@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { apiUpload } from "../lib/api";
+import { apiGet, apiUpload } from "../lib/api";
 
 function scoreClass(s: number) {
   return s >= 85 ? "good" : s >= 65 ? "warn" : "bad";
@@ -9,6 +9,7 @@ function scoreClass(s: number) {
 
 export default function ProfilePage() {
   const [data, setData] = useState<any>(null);
+  const [templates, setTemplates] = useState<any>(null);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
 
@@ -17,10 +18,12 @@ export default function ProfilePage() {
     if (!file) return;
     setBusy(true);
     setErr("");
+    setTemplates(null);
     try {
       const res = await apiUpload("/profiles/upload", file);
       setData(res);
       localStorage.setItem("profile_id", res.profile_id);
+      try { setTemplates(await apiGet(`/templates/recommend/${res.profile_id}`)); } catch {}
     } catch (e: any) {
       setErr(e.message);
     } finally {
@@ -91,6 +94,23 @@ export default function ProfilePage() {
                 <strong>{it.message}</strong>
                 <div className="muted">{it.suggestion}</div>
               </span>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {templates && (
+        <div className="card reveal">
+          <span className="kicker">ATS template suggestions</span>
+          <p className="muted" style={{ marginTop: 10 }}>{templates.note}</p>
+          {templates.recommendations?.map((t: any) => (
+            <div key={t.id} style={{ borderTop: "1px solid var(--line)", padding: "12px 0" }}>
+              <div className="row">
+                <strong>{t.name}</strong>
+                <span className="pill">{t.layout}</span>
+                <a href={t.url} target="_blank" rel="noreferrer" style={{ marginLeft: "auto" }}>Open ↗</a>
+              </div>
+              <div className="muted" style={{ fontSize: 13 }}>{t.why} — <em>{t.match_reason}</em></div>
             </div>
           ))}
         </div>

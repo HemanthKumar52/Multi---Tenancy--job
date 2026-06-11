@@ -36,6 +36,9 @@ class Tenant(Base):
     __tablename__ = "tenants"
     id: Mapped[str] = mapped_column(String(32), primary_key=True, default=_uuid)
     name: Mapped[str] = mapped_column(String(255), default="")
+    plan: Mapped[str] = mapped_column(String(32), default="free")          # free | pro
+    stripe_customer_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    stripe_subscription_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=_now)
 
 
@@ -43,11 +46,22 @@ class User(Base):
     __tablename__ = "users"
     id: Mapped[str] = mapped_column(String(32), primary_key=True, default=_uuid)
     tenant_id: Mapped[str] = mapped_column(String(32), ForeignKey("tenants.id"), index=True)
-    email: Mapped[str] = mapped_column(String(255), default="")
+    email: Mapped[str] = mapped_column(String(255), default="", index=True)
     name: Mapped[str] = mapped_column(String(255), default="")
-    inbox_alias: Mapped[str] = mapped_column(String(255), default="")
+    password_hash: Mapped[str] = mapped_column(String(255), default="")
+    inbox_alias: Mapped[str] = mapped_column(String(255), default="", index=True)
     telegram_chat_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=_now)
+
+
+class UsageEvent(Base):
+    """One row per metered action (tailor / apply). Monthly counts drive plan caps."""
+
+    __tablename__ = "usage_events"
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=_uuid)
+    tenant_id: Mapped[str] = mapped_column(String(32), index=True)
+    kind: Mapped[str] = mapped_column(String(32), index=True)               # tailor | apply
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=_now, index=True)
 
 
 class Resume(Base):
@@ -105,6 +119,8 @@ class Application(Base):
     notes: Mapped[list] = mapped_column(JSON, default=list)
     # Audit/consent record: vendor result, resume hash, screenshot path, confirmation url, etc.
     audit: Mapped[dict] = mapped_column(JSON, default=dict)
+    # Payload for the async worker (identity + answers), so QUEUED applies survive a restart.
+    queued_payload: Mapped[dict] = mapped_column(JSON, default=dict)
     approved_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)  # consent record
     submitted_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=_now)
