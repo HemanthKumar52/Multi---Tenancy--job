@@ -1,0 +1,40 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Env / secrets
+.env
+.env.local
+*.local
+
+# Node / Next
+node_modules/
+.next/
+out/
+dist/
+.turbo/
+
+# Data / artifacts
+*.sqlite3
+*.db
+/backend/storage/
+/backend/.uploads/
+tmp/
+*.log
+
+# Scratch / artifacts
+.design_shots/
+**/apply_screenshots/
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/*
+!.vscode/extensions.json

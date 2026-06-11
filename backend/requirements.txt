@@ -1,0 +1,30 @@
+# Web / API
+fastapi>=0.115
+uvicorn[standard]>=0.32
+python-multipart>=0.0.12
+pydantic>=2.9
+pydantic-settings>=2.6
+
+# DB
+SQLAlchemy>=2.0.36
+# Postgres driver (optional in dev; SQLite used by default)
+psycopg[binary]>=3.2 ; platform_python_implementation == "CPython"
+
+# Resume IO
+python-docx>=1.1.2
+pypdf>=5.1
+
+# HTTP (discovery clients)
+httpx>=0.28
+
+# Matching fallback
+numpy>=2.1
+
+# LLM (optional at runtime; offline fallback used when key absent)
+anthropic>=0.40
+
+# Agent orchestration
+langgraph>=0.2.50
+
+# Dev / test
+pytest>=8.3
