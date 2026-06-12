@@ -13,6 +13,7 @@ export default function AutoApplyPage() {
   const [searches, setSearches] = useState<any[]>([]);
   const [batch, setBatch] = useState<any>(null);
   const [sendResult, setSendResult] = useState<any>(null);
+  const [dry, setDry] = useState<Record<string, any>>({});
   const [err, setErr] = useState("");
 
   async function refreshSearches() {
@@ -54,6 +55,16 @@ export default function AutoApplyPage() {
     if (!batch?.batch_id) return;
     try { setSendResult(await apiPost(`/auto-apply/batches/${batch.batch_id}/send`, { confirm: true })); }
     catch (e: any) { setErr(e.message); }
+  }
+
+  async function preview(id: string) {
+    setDry((d) => ({ ...d, [id]: { status: "running…" } }));
+    try {
+      const r = await apiPost(`/applications/${id}/dry-run`);
+      setDry((d) => ({ ...d, [id]: r }));
+    } catch (e: any) {
+      setDry((d) => ({ ...d, [id]: { status: "error", message: e.message } }));
+    }
   }
 
   return (
@@ -115,12 +126,22 @@ export default function AutoApplyPage() {
         <div className="card reveal">
           <span className="kicker">Batch ready · {batch.prepared_count} tailored · {batch.manual_count} manual</span>
           <table style={{ marginTop: 12 }}>
-            <thead><tr><th>Fit</th><th>Role</th><th>Company</th><th>ATS</th></tr></thead>
+            <thead><tr><th>Fit</th><th>Role</th><th>Company</th><th>ATS</th><th>Preview</th></tr></thead>
             <tbody>
               {batch.prepared?.map((p: any) => (
                 <tr key={p.application_id}>
                   <td className="mono">{p.fit}</td><td>{p.title}</td><td>{p.company}</td>
                   <td><span className="badge t1">{p.ats_vendor}</span></td>
+                  <td>
+                    <button className="secondary" style={{ padding: "5px 10px", fontSize: 13 }}
+                            onClick={() => preview(p.application_id)}>Dry-run</button>
+                    {dry[p.application_id] && (
+                      <div className="muted mono" style={{ fontSize: 11, marginTop: 4 }}>
+                        {dry[p.application_id].status === "dry_run" ? "✓ filled, ready (not sent)"
+                          : dry[p.application_id].status}
+                      </div>
+                    )}
+                  </td>
                 </tr>
               ))}
             </tbody>
