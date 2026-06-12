@@ -124,6 +124,43 @@ def approve(
     return {"application_id": app_row.id, "state": draft.state.value, "notes": app_row.notes}
 
 
+@router.post("/{application_id}/dry-run")
+def dry_run(
+    application_id: str,
+    db: Session = Depends(get_db),
+    tenant_id: str = Depends(current_tenant_id),
+) -> dict:
+    """Preview/validate a live ATS apply: drive the real form, fill it, STOP before submit.
+    Safe — nothing is ever submitted. Host-allowlisted. Works regardless of APPLY_LIVE."""
+    import importlib
+
+    app_row = (db.query(models.Application)
+               .filter(models.Application.id == application_id,
+                       models.Application.tenant_id == tenant_id).first())
+    if not app_row:
+        raise HTTPException(404, "Application not found")
+    job = get_job_row(db, tenant_id, app_row.job_id)
+
+    mods = {"greenhouse": "playwright_greenhouse", "lever": "playwright_lever", "ashby": "playwright_ashby"}
+    if job.ats_vendor not in mods:
+        raise HTTPException(400, f"Dry-run supported only for ATS vendors {list(mods)}; this job is "
+                                 f"'{job.ats_vendor}' (apply via its link).")
+    pg = importlib.import_module(f"app.services.apply.{mods[job.ats_vendor]}")
+
+    profile, _ = load_master_profile(db, tenant_id, app_row.profile_id)
+    name_parts = profile.name.split()
+    identity = {"first_name": name_parts[0] if name_parts else "",
+                "last_name": " ".join(name_parts[1:]) if len(name_parts) > 1 else "",
+                "email": profile.email, "phone": profile.phone}
+    ap = db.query(models.AnswerProfile).filter(models.AnswerProfile.tenant_id == tenant_id).first()
+    answers = (ap.answers if ap else {}) or {}
+
+    try:
+        return pg.submit_application(job.url, app_row.tailored_doc_path, identity, answers, dry_run=True)
+    except pg.HostNotAllowed as exc:
+        return {"ok": False, "status": "blocked_host", "message": str(exc)}
+
+
 @router.post("/{application_id}/skip")
 def skip(
     application_id: str,

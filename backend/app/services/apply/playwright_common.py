@@ -190,6 +190,7 @@ def submit_via_spec(
     headless: bool | None = None,
     timeout_ms: int | None = None,
     screenshot_dir: str | None = None,
+    dry_run: bool = False,
 ) -> dict:
     if not host_allowed(apply_url):
         raise HostNotAllowed(
@@ -267,6 +268,14 @@ def submit_via_spec(
                 result.update(message="Submit button not found.")
                 return _finalize(page, shot_dir, result)
 
+            if dry_run:
+                # Validation / preview: everything is filled, but we STOP before submit.
+                # Nothing is ever sent to the company.
+                result.update(ok=True, status="dry_run", submit_ready=True,
+                              message=f"{spec.name}: form filled and ready — stopped before submit "
+                                      f"(dry run, nothing sent).")
+                return _finalize(page, shot_dir, result)
+
             for _ in range(20):   # aria-disabled guard (bounded, ~5s, not a busy-spin)
                 try:
                     if (submit.get_attribute("aria-disabled", timeout=500) or "false") != "true":
@@ -293,7 +302,8 @@ def submit_via_spec(
 
 
 def _finalize(page, shot_dir: Path, result: dict) -> dict:
-    if result.get("status") != "submitted" and not settings.apply_debug_screenshots:
+    # Screenshot the confirmation (submitted) or the filled-but-unsent form (dry_run) for evidence.
+    if result.get("status") not in ("submitted", "dry_run") and not settings.apply_debug_screenshots:
         return result
     try:
         stamp = hashlib.sha1(f"{page.url}:{result['status']}:{result['vendor']}".encode()).hexdigest()[:12]

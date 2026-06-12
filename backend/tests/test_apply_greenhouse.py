@@ -56,6 +56,21 @@ def test_live_submit_fills_uploads_and_confirms(mock_gh, sample_resume):
     assert isinstance(resume, dict) and resume["size"] > 0   # the resume file was uploaded
 
 
+def test_dry_run_fills_but_never_submits(mock_gh, sample_resume):
+    result = pg.submit_application(
+        mock_gh.apply_url, str(sample_resume),
+        identity={"first_name": "Jane", "last_name": "Developer",
+                  "email": "jane@example.com", "phone": "+1 415 555 0100"},
+        answers={"Why do you want to work here?": "I love backends.",
+                 "Are you authorized to work?": "Yes"},
+        headless=True, dry_run=True,
+    )
+    assert result["ok"] is True and result["status"] == "dry_run"
+    assert result.get("submit_ready") is True
+    assert result["screenshot_path"] and Path(result["screenshot_path"]).exists()
+    assert mock_gh.received == {}    # the form was filled but NOTHING was submitted
+
+
 def test_captcha_or_login_triggers_human_handoff(mock_gh_handoff, sample_resume):
     result = pg.submit_application(
         mock_gh_handoff.apply_url,

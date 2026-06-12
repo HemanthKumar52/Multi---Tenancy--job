@@ -77,6 +77,11 @@ Verified by **29 backend tests** + an **11-step end-to-end HTTP smoke** (`script
 and a clean Next.js production build. Hardened against a 20-finding adversarial review.
 See `PLAN.md` §8 for the full roadmap.
 
+### Live apply: validate, then enable
+`POST /applications/{id}/dry-run` drives the **real** ATS form, fills + uploads, and **stops before
+submit** (nothing sent) — validated against a live GitLab Greenhouse form. Use it to confirm a
+posting before enabling `APPLY_LIVE=1`; first test real submission against a posting *you own*.
+
 ### Safety model (apply step)
 
 Nothing is submitted without an explicit human `confirm=true` approval (the consent record).
