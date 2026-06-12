@@ -32,6 +32,9 @@ playwright>=1.48
 # Billing (optional at runtime — imported only when Stripe keys are set)
 stripe>=11.0
 
+# Scheduling (daily auto-apply batches)
+APScheduler>=3.10
+
 # Agent orchestration
 langgraph>=0.2.50
 

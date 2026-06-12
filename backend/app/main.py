@@ -11,6 +11,7 @@ from app.api.deps import DEV_TENANT_ID
 from app.api.routes import (
     applications,
     auth,
+    auto_apply,
     billing,
     health,
     inbox,
@@ -68,6 +69,9 @@ async def lifespan(app: FastAPI):
     init_db()
     _seed_dev_tenant()
     _recover_queued()
+    if settings.scheduler_enabled:
+        from app.services.scheduler import start_scheduler
+        start_scheduler()
     yield
 
 
@@ -87,7 +91,7 @@ app.add_middleware(
 )
 
 for r in (health, auth, billing, profiles, jobs, matches, tailor, applications,
-          inbox, prep, notifications, templates):
+          inbox, prep, notifications, templates, auto_apply):
     app.include_router(r.router)
 
 

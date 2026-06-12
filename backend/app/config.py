@@ -37,6 +37,10 @@ class Settings(BaseSettings):
     # Apply execution: run approved applies on a background worker instead of inline.
     apply_async: bool = False
 
+    # Daily auto-apply scheduler — OFF by default (so dev/tests don't auto-run batches).
+    scheduler_enabled: bool = False
+    scheduler_hour: int = 8          # local hour to build the daily batches
+
     # Database — default SQLite file under storage/
     database_url: str | None = None
 

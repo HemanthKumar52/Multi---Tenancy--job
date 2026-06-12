@@ -60,6 +60,22 @@ class InboundEmailRequest(BaseModel):
     application_id: str | None = None
 
 
+class AnswerProfileRequest(BaseModel):
+    profile_id: str = ""
+    identity: dict = Field(default_factory=dict)   # first_name/last_name/email/phone
+    answers: dict = Field(default_factory=dict)     # {question label: answer}
+    meta: dict = Field(default_factory=dict)        # work_authorized, needs_sponsorship, links
+
+
+class SavedSearchRequest(BaseModel):
+    profile_id: str
+    name: str = "Daily auto-apply"
+    source_specs: list[dict] = Field(default_factory=list)
+    daily_cap: int = 10
+    vendor_allowlist: list[str] = Field(default_factory=lambda: ["greenhouse", "lever", "ashby"])
+    review_mode: bool = True
+
+
 class PrepRequest(BaseModel):
     company: str = ""
     role: str = ""

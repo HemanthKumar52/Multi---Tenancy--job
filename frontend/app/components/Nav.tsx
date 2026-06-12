@@ -22,6 +22,7 @@ export default function Nav() {
         <Link href="/">Dashboard</Link>
         <Link href="/profile">Profile</Link>
         <Link href="/jobs">Jobs</Link>
+        <Link href="/auto-apply">Auto-apply</Link>
         <Link href="/applications">Applications</Link>
         {authed ? <Link href="/settings">Settings</Link> : <Link href="/login">Sign in</Link>}
       </span>

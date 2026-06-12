@@ -54,6 +54,36 @@ class User(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, default=_now)
 
 
+class AnswerProfile(Base):
+    """The user's reusable application answers — saved once, reused for every auto-apply."""
+
+    __tablename__ = "answer_profiles"
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=_uuid)
+    tenant_id: Mapped[str] = mapped_column(String(32), index=True)
+    profile_id: Mapped[str] = mapped_column(String(32), default="")
+    identity: Mapped[dict] = mapped_column(JSON, default=dict)   # first/last/email/phone
+    answers: Mapped[dict] = mapped_column(JSON, default=dict)    # {question label: answer}
+    meta: Mapped[dict] = mapped_column(JSON, default=dict)       # work auth, sponsorship, links
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=_now)
+
+
+class SavedSearch(Base):
+    """A daily auto-apply policy: where to look, how many/day, and the consent model."""
+
+    __tablename__ = "saved_searches"
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=_uuid)
+    tenant_id: Mapped[str] = mapped_column(String(32), index=True)
+    profile_id: Mapped[str] = mapped_column(String(32), default="")
+    name: Mapped[str] = mapped_column(String(255), default="")
+    source_specs: Mapped[list] = mapped_column(JSON, default=list)
+    daily_cap: Mapped[int] = mapped_column(Integer, default=10)
+    vendor_allowlist: Mapped[list] = mapped_column(JSON, default=list)   # ATS we auto-submit to
+    enabled: Mapped[bool] = mapped_column(Boolean, default=True)
+    review_mode: Mapped[bool] = mapped_column(Boolean, default=True)     # review-then-send
+    last_run_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=_now)
+
+
 class UsageEvent(Base):
     """One row per metered action (tailor / apply). Monthly counts drive plan caps."""
 
@@ -112,6 +142,7 @@ class Application(Base):
     profile_id: Mapped[str] = mapped_column(String(32))
     job_id: Mapped[str] = mapped_column(String(32))
     state: Mapped[str] = mapped_column(String(32), default="pending_approval")
+    batch_id: Mapped[str | None] = mapped_column(String(32), nullable=True, index=True)  # daily batch
     match_score: Mapped[int] = mapped_column(Integer, default=0)
     edit_set: Mapped[dict] = mapped_column(JSON, default=dict)
     ats_report: Mapped[dict] = mapped_column(JSON, default=dict)
