@@ -14,6 +14,7 @@ export default function AutoApplyPage() {
   const [batch, setBatch] = useState<any>(null);
   const [sendResult, setSendResult] = useState<any>(null);
   const [dry, setDry] = useState<Record<string, any>>({});
+  const [dryAllBusy, setDryAllBusy] = useState(false);
   const [err, setErr] = useState("");
 
   async function refreshSearches() {
@@ -66,6 +67,15 @@ export default function AutoApplyPage() {
       setDry((d) => ({ ...d, [id]: { status: "error", message: e.message } }));
     }
   }
+
+  async function dryRunAll() {
+    if (!batch?.prepared?.length) return;
+    setDryAllBusy(true);
+    for (const p of batch.prepared) await preview(p.application_id);  // sequential — one browser at a time
+    setDryAllBusy(false);
+  }
+
+  const dryReady = Object.values(dry).filter((d: any) => d?.status === "dry_run").length;
 
   return (
     <>
@@ -147,8 +157,12 @@ export default function AutoApplyPage() {
             </tbody>
           </table>
           <div className="row" style={{ marginTop: 12 }}>
+            <button className="secondary" onClick={dryRunAll} disabled={dryAllBusy}>
+              {dryAllBusy ? "Previewing…" : `Dry-run all ${batch.prepared_count}`}
+            </button>
             <button className="success" onClick={sendAll}>✓ Send all {batch.prepared_count}</button>
-            <span className="muted" style={{ fontSize: 13 }}>One click = your batch consent for these {batch.prepared_count}.</span>
+            {dryReady > 0 && <span className="badge t1">{dryReady} filled &amp; ready</span>}
+            <span className="muted" style={{ fontSize: 13 }}>Dry-run = preview (nothing sent) · Send all = your batch consent.</span>
           </div>
           {sendResult && (
             <p style={{ marginTop: 12 }}>
